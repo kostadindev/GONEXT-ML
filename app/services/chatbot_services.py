@@ -19,15 +19,16 @@ prompt_template = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a League of Legends assistant. Given a match with information about the players in the game " +
-            "answer all questions to the best of your ability." +
-            "Be concise and informative in your responses." +
-            " You can respond with markdown to format responses beautifully where appropriate.",
+            "You are a League of Legends assistant. Given a match with information about the players in the game, " +
+            "Be concise and informative in your responses. " +
+            "Respond in a beautifully formatted Markdown. Use line separators or empty lines to separate "+
+            "logical sections" +
+            "Do not provide information unrelated to the question. "
         ),
         MessagesPlaceholder(variable_name="messages"),
         (
             "user",
-            "Here is additional context about the match: {match}",
+            "Here is additional context about the match: {match}. Advise me based on the specific game",
         ),
     ]
 )
@@ -43,7 +44,6 @@ workflow = StateGraph(state_schema=State)
 
 
 def call_model(state: dict):
-    print("State received in call_model:", state)
     try:
         match = state.get("match", {})
         prompt = prompt_template.invoke({
@@ -72,6 +72,7 @@ def handle_chatbot_request(thread_id: str, query: str, match: dict = None):
         input_messages = [HumanMessage(content=query)]
         state = {"messages": input_messages, "match": match}
         output = app.invoke(state, config)
+        print(output["messages"][-1].content)
         return output["messages"][-1].content
     except Exception as e:
         print(f"Error in handle_chatbot_request: {e}")
