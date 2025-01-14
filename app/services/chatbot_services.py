@@ -4,31 +4,57 @@ from langgraph.graph import START, MessagesState, StateGraph
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage
 from app.config import settings
+import json
+from typing_extensions import Annotated, TypedDict
+from typing import Sequence
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
+
 
 # Initialize ChatOpenAI model
-model = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key)
+model = ChatOpenAI(model="gpt-4o", api_key=settings.openai_api_key)
 
 # Define a system prompt
 prompt_template = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a League of Legends assistant. Answer all questions to the best of your ability." +
-            "You can respond with markdown to format responses beautifully where appropriate",
+            "You are a League of Legends assistant. Given a match with information about the players in the game " +
+            "answer all questions to the best of your ability." +
+            "Be concise and informative in your responses." +
+            " You can respond with markdown to format responses beautifully where appropriate.",
         ),
         MessagesPlaceholder(variable_name="messages"),
+        (
+            "user",
+            "Here is additional context about the match: {match}",
+        ),
     ]
 )
 
 # Define chatbot workflow
-workflow = StateGraph(state_schema=MessagesState)
+
+class State(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    match: dict
+
+
+workflow = StateGraph(state_schema=State)
 
 
 def call_model(state: dict):
-    # Use 'state["messages"]' instead of 'state.messages'
-    prompt = prompt_template.invoke({"messages": state["messages"]})
-    response = model.invoke(prompt)
-    return {"messages": response}
+    print("State received in call_model:", state)
+    try:
+        match = state.get("match", {})
+        prompt = prompt_template.invoke({
+            "messages": state["messages"],
+            "match": match,
+        })
+        response = model.invoke(prompt)
+        return {"messages": response}
+    except Exception as e:
+        print(f"Error in call_model: {e}")
+        return {"messages": ["Error occurred while processing the model."]}
 
 
 workflow.add_edge(START, "model")
@@ -39,9 +65,15 @@ memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)
 
 # Function to handle chatbot requests
-def handle_chatbot_request(thread_id: str, query: str):
-    config = {"configurable": {"thread_id": thread_id}}
-    input_messages = [HumanMessage(content=query)]
-    # Pass 'messages' as a dictionary
-    output = app.invoke({"messages": input_messages}, config)
-    return output["messages"][-1].content
+def handle_chatbot_request(thread_id: str, query: str, match: dict = None):
+    # print("Received match:", match)
+    try:
+        config = {"configurable": {"thread_id": thread_id}}
+        input_messages = [HumanMessage(content=query)]
+        state = {"messages": input_messages, "match": match}
+        output = app.invoke(state, config)
+        return output["messages"][-1].content
+    except Exception as e:
+        print(f"Error in handle_chatbot_request: {e}")
+        return "An error occurred while processing your request. Please try again later."
+
