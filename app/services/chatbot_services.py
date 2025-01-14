@@ -13,7 +13,8 @@ prompt_template = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a League of Legends assistant. Answer all questions to the best of your ability.",
+            "You are a League of Legends assistant. Answer all questions to the best of your ability." +
+            "You can respond with markdown to format responses beautifully where appropriate",
         ),
         MessagesPlaceholder(variable_name="messages"),
     ]
