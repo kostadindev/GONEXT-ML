@@ -1,0 +1,55 @@
+# Python cache files
+*.py[cod]
+__pycache__/
+
+# Virtual environment folders
+venv/
+.env/
+
+# Environment variables
+*.env
+.env.*
+
+# Logs
+*.log
+*.log.*
+
+# Byte-compiled files
+*.pyc
+
+# IDE settings
+.idea/
+.vscode/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Python-specific folders
+*.eggs
+*.wheel
+*.egg
+
+# MyPy cache
+.mypy_cache/
+
+# Pytest cache
+.pytest_cache/
+
+# Coverage reports
+coverage.xml
+*.cover
+.hypothesis/
+
+# FastAPI specific
+staticfiles/
+mediafiles/
+
+# LangChain artifacts
+langcha
+
+.idea/
