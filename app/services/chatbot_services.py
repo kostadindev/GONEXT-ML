@@ -12,7 +12,7 @@ from langgraph.graph.message import add_messages
 
 
 # Initialize ChatOpenAI model
-model = ChatOpenAI(model="gpt-4o", api_key=settings.openai_api_key)
+model = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key)
 
 # Define a system prompt
 prompt_template = ChatPromptTemplate.from_messages(
