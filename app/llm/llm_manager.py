@@ -29,6 +29,7 @@ class LLM:
                 max_retries=2,
                 google_api_key=settings.gemini_api_key,
             )
+            self.default_model = self.gemini  # Default model to use
             self.initialized = True  # Mark as initialized to avoid re-initialization
 
     def get(self, model_name: LLMOptions):
@@ -49,4 +50,4 @@ class LLM:
         if model_name in model_mapping:
             return model_mapping[model_name]
         else:
-            raise ValueError(f"Model '{model_name}' is not available. Available models: {[e.value for e in LLMOptions]}")
+            return self.default_model

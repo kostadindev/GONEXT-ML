@@ -4,6 +4,8 @@ from typing_extensions import Annotated
 from typing import Sequence
 from pydantic import BaseModel, Field
 from langchain_core.prompts import PromptTemplate
+from app.llm.llm import llm
+from app.llm.llm_manager import LLMOptions
 
 
 class Tip(BaseModel):
@@ -17,21 +19,25 @@ class Tips(BaseModel):
     tips: Annotated[Sequence[Tip], 'List of tips'] = Field(description="List of tips to play matchup or synergy")
 
 
-model = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key)
-template = ("You are a League of Legends expert. Give tips on the {tips_type} between"
-            " me as {my_champion} and {other_champion}. Provide meaningful titles and specific descriptions.")
+template = ("You are a League of Legends expert. Provide tips on the {tips_type} between"
+            " me as {my_champion} and {other_champion}. Provide meaningful titles and specific descriptions."
+            " All tips should be written in {language}.")
 prompt = PromptTemplate.from_template(template)
-structured_model = model.with_structured_output(Tips)
-tips_chain = prompt | structured_model
 
 
-def handle_tips_request(tips_type: str, my_champion: str, other_champion:str):
+def handle_tips_request(tips_type: str, my_champion: str, other_champion: str, modelName: LLMOptions, language: str):
     try:
-        state = {"tips_type": tips_type, "my_champion": my_champion, "other_champion": other_champion}
+        print(language)
+        model = llm.get(modelName).with_structured_output(Tips)
+        tips_chain = prompt | model
+        state = {
+            "tips_type": tips_type,
+            "my_champion": my_champion,
+            "other_champion": other_champion,
+            "language": language
+        }
         output = tips_chain.invoke(state)
-        print(output)
         return output
     except Exception as e:
-        print(f"Error in handle_chatbot_request: {e}")
+        print(f"Error in handle_tips_request: {e}")
         return "An error occurred while processing your request. Please try again later."
-

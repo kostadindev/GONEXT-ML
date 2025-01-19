@@ -39,22 +39,11 @@ class State(TypedDict):
 
 workflow = StateGraph(state_schema=State)
 
-# Function to pick the appropriate model using the singleton
-def pick_model(state: dict):
-    try:
-        if state["modelName"] == "gemini-1.5-flash":
-            model = llm.get(LLMOptions.GEMINI_FLASH)
-        else:
-            model = llm.get(LLMOptions.GPT_MINI)
-        return model
-    except Exception as e:
-        raise ValueError(f"Error in pick_model: {e}")
 
 # Function to invoke the model with language handling
 def call_model(state: dict):
-    print(state)
     try:
-        model = pick_model(state)  # Use the singleton to get the model
+        model = llm.get(state["modelName"])  # Use the singleton to get the model
         match = state.get("match", {})
         language = state.get("language", "English")  # Default to English if not provided
         prompt = prompt_template.invoke({
