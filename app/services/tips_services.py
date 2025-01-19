@@ -27,7 +27,6 @@ prompt = PromptTemplate.from_template(template)
 
 def handle_tips_request(tips_type: str, my_champion: str, other_champion: str, modelName: LLMOptions, language: str):
     try:
-        print(language)
         model = llm.get(modelName).with_structured_output(Tips)
         tips_chain = prompt | model
         state = {

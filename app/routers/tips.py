@@ -20,7 +20,6 @@ class TipsRequest(BaseModel):
 def tips_interaction(request: TipsRequest):
     try:
         # Access thread_id and query from the request body
-        print("hitting here", request.language, request.model)
         response = handle_tips_request(
             my_champion=request.my_champion,
             other_champion=request.other_champion,
