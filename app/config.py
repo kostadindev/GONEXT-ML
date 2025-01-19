@@ -6,8 +6,9 @@ load_dotenv()
 
 class Settings(BaseSettings):
     openai_api_key: str
-    langsmith_tracing: str = None  # Add this if needed
-    langchain_api_key: str = None  # Add this if needed
+    gemini_api_key: str
+    langsmith_tracing: str = None
+    langchain_api_key: str = None
 
     class Config:
         env_file = ".env"

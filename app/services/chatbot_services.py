@@ -1,15 +1,13 @@
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.graph import START, StateGraph
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, BaseMessage
+from app.llm.llm import llm
+from app.llm.llm_manager import LLMOptions
 from app.config import settings
 from typing_extensions import Annotated, TypedDict
 from typing import Sequence
 from langgraph.graph.message import add_messages
-
-# Initialize ChatOpenAI model
-model = ChatOpenAI(model="gpt-4o-mini", api_key=settings.openai_api_key)
 
 # Define system prompt template
 prompt_template = ChatPromptTemplate.from_messages(
@@ -36,12 +34,26 @@ prompt_template = ChatPromptTemplate.from_messages(
 class State(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     match: dict
+    modelName: str
 
 workflow = StateGraph(state_schema=State)
 
+# Function to pick the appropriate model using the singleton
+def pick_model(state: dict):
+    try:
+        if state["modelName"] == "gemini-1.5-flash":
+            model = llm.get(LLMOptions.GEMINI_FLASH)
+        else:
+            model = llm.get(LLMOptions.GPT_MINI)
+        return model
+    except Exception as e:
+        raise ValueError(f"Error in pick_model: {e}")
+
 # Function to invoke the model
 def call_model(state: dict):
+    print(state)
     try:
+        model = pick_model(state)  # Use the singleton to get the model
         match = state.get("match", {})
         prompt = prompt_template.invoke({
             "messages": state["messages"],
@@ -62,11 +74,11 @@ memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)
 
 # Function to handle chatbot requests
-def handle_chatbot_request(thread_id: str, query: str, match: dict = None):
+def handle_chatbot_request(thread_id: str, query: str, match: dict = None, modelName="gemini-1.5-flash"):
     try:
         config = {"configurable": {"thread_id": thread_id}}
         input_messages = [HumanMessage(content=query)]
-        state = {"messages": input_messages, "match": match}
+        state = {"messages": input_messages, "match": match, "modelName": modelName}
         return app.stream(state, config, stream_mode=["messages"])
     except Exception as e:
         print(f"Error in handle_chatbot_request: {e}")
