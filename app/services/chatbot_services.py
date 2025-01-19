@@ -9,16 +9,16 @@ from typing_extensions import Annotated, TypedDict
 from typing import Sequence
 from langgraph.graph.message import add_messages
 
-# Define system prompt template
+# Define system prompt template with language support
 prompt_template = ChatPromptTemplate.from_messages(
     [
         (
             "system",
             (
                 "You are a League of Legends assistant. Given a match with information about the players in the game, "
-                "be concise and informative in your responses. "
-                "Respond in a beautifully formatted Markdown. Use line separators or empty lines to separate "
-                "logical sections. "
+                "be concise and informative in your responses. Respond in beautifully formatted Markdown. "
+                "Use line separators or empty lines to separate logical sections. "
+                "Respond in the language specified: {language}."
                 "Do not provide information unrelated to the question."
             ),
         ),
@@ -30,11 +30,12 @@ prompt_template = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Define chatbot workflow state
+# Define chatbot workflow state with language support
 class State(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     match: dict
     modelName: str
+    language: str  # New field to specify the response language
 
 workflow = StateGraph(state_schema=State)
 
@@ -49,15 +50,17 @@ def pick_model(state: dict):
     except Exception as e:
         raise ValueError(f"Error in pick_model: {e}")
 
-# Function to invoke the model
+# Function to invoke the model with language handling
 def call_model(state: dict):
     print(state)
     try:
         model = pick_model(state)  # Use the singleton to get the model
         match = state.get("match", {})
+        language = state.get("language", "English")  # Default to English if not provided
         prompt = prompt_template.invoke({
             "messages": state["messages"],
             "match": match,
+            "language": language,
         })
         response = model.invoke(prompt)
         return {"messages": response}
@@ -73,12 +76,12 @@ workflow.add_node("model", call_model)
 memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)
 
-# Function to handle chatbot requests
-def handle_chatbot_request(thread_id: str, query: str, match: dict = None, modelName="gemini-1.5-flash"):
+# Function to handle chatbot requests with language support
+def handle_chatbot_request(thread_id: str, query: str, match: dict = None, modelName="gemini-1.5-flash", language="English"):
     try:
         config = {"configurable": {"thread_id": thread_id}}
         input_messages = [HumanMessage(content=query)]
-        state = {"messages": input_messages, "match": match, "modelName": modelName}
+        state = {"messages": input_messages, "match": match, "modelName": modelName, "language": language}
         return app.stream(state, config, stream_mode=["messages"])
     except Exception as e:
         print(f"Error in handle_chatbot_request: {e}")
