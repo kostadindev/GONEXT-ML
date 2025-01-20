@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.routers import chatbot, tips
+from app.routers import game_overview
 
 app = FastAPI()
 
@@ -7,6 +8,7 @@ app = FastAPI()
 
 app.include_router(chatbot.router, prefix="/chatbot", tags=["Chatbot"])
 app.include_router(tips.router, prefix="/tips", tags=["Tips"])
+app.include_router(game_overview.router, prefix="/game_overview", tags=["Game Overview"])
 
 # app.include_router(chatbot)
 
