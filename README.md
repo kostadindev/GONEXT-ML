@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/a00d71f8-47f8-40d0-9ecd-99780005170c)# GoNext
+# GoNext
 
 This is the ML server for GoNext.
 
@@ -37,5 +37,6 @@ UI & API side available at [GoNext ML GitHub Repository](https://github.com/kost
 ![image](https://github.com/user-attachments/assets/92c64060-849f-4e6f-a725-40d22e5765a2)
 ![image](https://github.com/user-attachments/assets/e7609db4-59d5-4ed6-ad4e-073f5f9153c1)
 ![image](https://github.com/user-attachments/assets/6ff150f0-733e-41d7-b288-5f44b23bf8f6)
+![image](https://github.com/user-attachments/assets/a00d71f8-47f8-40d0-9ecd-99780005170c)
 
 
