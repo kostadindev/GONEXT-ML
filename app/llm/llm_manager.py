@@ -7,7 +7,7 @@ from app.config import settings
 class LLMOptions(Enum):
     """Enum to define available model names."""
     GPT_MINI = "gpt-4o-mini"
-    GEMINI_FLASH = "gemini-1.5-flash"
+    GEMINI_FLASH = "gemini-2.0-flash"
 
 
 class LLM:
@@ -24,7 +24,7 @@ class LLM:
                 model="gpt-4o-mini", api_key=settings.openai_api_key
             )
             self.gemini = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-2.0-flash",
                 timeout=None,
                 max_retries=2,
                 google_api_key=settings.gemini_api_key,

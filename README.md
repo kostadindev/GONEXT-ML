@@ -27,7 +27,7 @@ This is the ML server for GoNext.
   Obtain AI-driven insights in various supported languages (English, Korean, Chinese, Spanish, Bulgarian, etc.).
 
 - **Seamless LLM Switch**  
-  Instantly switch between GPT-4o, GPT-4o-mini, and Gemini 1.5 Flash for optimal performance and cost efficiency.
+  Instantly switch between GPT-4o, GPT-4o-mini, and Gemini 2.0 Flash for optimal performance and cost efficiency.
 
 ---
 
@@ -60,7 +60,7 @@ UI & API side available at [GoNext ML GitHub Repository](https://github.com/kost
   Obtain AI-driven insights in various supported languages (English, Korean, Chinese, Spanish, Bulgarian, etc.).
 
 - **Seamless LLM Switch**  
-  Instantly switch between GPT-4o, GPT-4o-mini, and Gemini 1.5 Flash for optimal performance and cost efficiency.
+  Instantly switch between GPT-4o, GPT-4o-mini, and Gemini 2.0 Flash for optimal performance and cost efficiency.
 
 ---
 
