@@ -13,7 +13,7 @@ class GameOverview(BaseModel):
     game_summary: str = Field(description="Concise summary of the most important aspects of the specific match")
 
 
-template = ("You are a League of Legends expert. Provide estimated win rate percentage,"
+template = ("You are a League of Legends expert. Provide estimated win rate percentage (e.g xx.xx),"
             " recommended items, and a game summary"
             " for the specific match after analyzing it thoroughly."
                         "The summary should highlight the most important aspects for the upcoming match and should be "
