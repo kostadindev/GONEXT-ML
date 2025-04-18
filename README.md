@@ -1,8 +1,8 @@
-# GoNext - League of Legends Assistant API
+# **GONEXT** - League of Legends Assistant API
 
-This is the ML server for GONEXT - a GenAI-powered assistant tailored for League of Legends players.
+This is the ML server for **GONEXT** - a GenAI-powered assistant tailored for League of Legends players.
 
-**GONEXT** delivers real-time and personalized strategies, matchups, synergies, and builds. By harnessing the Riot API, GoNext retrieves live game data—covering both allied and enemy players—and employs large language models to offer context-specific guidance for every match.
+**GONEXT** delivers real-time and personalized strategies, matchups, synergies, and builds. By harnessing the Riot API, **GONEXT** retrieves live game data—covering both allied and enemy players—and employs large language models to offer context-specific guidance for every match.
 
 ## Features
 
@@ -180,10 +180,6 @@ Comprehensive error handling with custom error types:
 ![Chatbot Interface](https://github.com/user-attachments/assets/dacc5906-e871-4150-a780-723c81e2d362)
 
 ![Game Analysis](https://github.com/user-attachments/assets/205a5b4c-8dd4-439d-821f-9ddc5dd57c35)
-
-![Champion Recommendations](https://github.com/user-attachments/assets/961bc52b-f289-40e1-8e7d-0d1c48178033)
-
-![Performance Analysis](https://github.com/user-attachments/assets/0c7c618f-7c1f-408b-80ad-6a77fb56e626)
 
 ## Contributing
 
