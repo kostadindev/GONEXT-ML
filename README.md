@@ -82,6 +82,54 @@ Run tests using pytest:
 pytest
 ```
 
+For test coverage report:
+
+```
+pytest --cov=app --cov-report=html
+```
+
+This will generate an HTML coverage report in the `htmlcov/` directory.
+
+## Test Coverage Report
+
+The current test coverage is **79%** overall. Key coverage metrics:
+
+| Module | Coverage |
+|--------|----------|
+| App Models | 100% |
+| LLM Singleton | 100% |
+| LLM Manager | 96% |
+| Main App | 96% |
+| Chatbot Services | 56% |
+| Chatbot Router | 57% |
+| Error Handler | 69% |
+| Logger | 87% |
+| Game Services | 87-91% |
+
+### Coverage Analysis
+
+- **Well Tested Areas**:
+  - Data models (100% coverage)
+  - LLM singleton pattern (96-100%)
+  - Application setup (96%)
+  - Utility services (87-91%)
+
+- **Areas Needing Improvement**:
+  - Chatbot services (56%): Core functions like `call_model` and `handle_chatbot_request` need more tests
+  - Chatbot router (57%): The streaming response mechanism is not fully tested
+  - Error handling (69%): Some error cases are not covered
+
+### Highest Priority Test Improvements:
+
+1. Add tests for the `chatbot_services.py` module, particularly:
+   - The LangGraph workflow execution
+   - Response streaming functionality
+   - Error handling scenarios
+
+2. Improve router testing for streaming responses
+
+3. Enhance test mocking of LLM response formats
+
 ## Project Structure
 
 ```
@@ -101,6 +149,31 @@ gonext-ml/
 ├── requirements.txt    # Dependencies
 └── README.md           # This file
 ```
+
+## Key Components
+
+### Chatbot Service
+
+The chatbot service uses LangGraph for conversation management with these components:
+
+1. **System Prompt**: Configurable template with language support that instructs the LLM to act as a League of Legends assistant
+2. **State Management**: Thread-based conversation state with message history
+3. **LLM Abstraction**: Singleton pattern for managing multiple LLM providers (OpenAI and Google Gemini)
+4. **Response Streaming**: FastAPI streaming responses for real-time chat interaction
+
+### LLM Integration
+
+The system supports multiple LLM providers through a singleton pattern:
+
+- **OpenAI**: GPT-4o-mini model
+- **Google**: Gemini 2.0 Flash model
+- Extendable to support additional models
+
+### Error Handling
+
+Comprehensive error handling with custom error types:
+- `ServiceUnavailableError`: For LLM service issues
+- `InvalidInputError`: For input validation failures
 
 ## Screenshots
 
