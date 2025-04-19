@@ -22,17 +22,9 @@ class TipsRequest(BaseModel):
     player_id: str
     language: Optional[str] = "en"
 
-class FollowupRequest(BaseModel):
+class MessageItem(BaseModel):
     """
-    Represents a request for suggested follow-up questions.
+    Represents a single message in a conversation.
     """
-    thread_id: str
-    previous_query: str
-    language: Optional[str] = "en"
-
-class GameOverviewRequest(BaseModel):
-    """
-    Represents a request for game overview data.
-    """
-    game_id: str
-    language: Optional[str] = "en"
+    role: str
+    content: str

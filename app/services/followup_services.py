@@ -1,99 +1,79 @@
-from typing import List, Dict, Optional, Any
-from uuid import uuid4
+from typing import List, Dict, Optional
+from pydantic import BaseModel, Field
 from langchain_core.prompts import PromptTemplate
 from app.llm.llm import llm
 from app.llm.llm_manager import LLMOptions
 from app.utils.logger import get_logger
 from app.utils.error_handler import ServiceUnavailableError
-from app.models.response import FollowupResponse, FollowupSuggestion
 
 # Get module logger
 logger = get_logger("followup_service")
 
-# Define prompt templates with language support
-FOLLOWUP_TEMPLATE = (
-    "You are an assistant helping League of Legends players with their questions about the game.\n"
-    "The player has asked the following question in a conversation:\n\n"
-    "Previous question: {previous_query}\n\n"
-    "Based on this question, suggest 3 helpful follow-up questions the player might want to ask next. "
-    "The follow-up questions should be related to League of Legends and relevant to their previous query. "
-    "Provide questions that would help the player get more specific or detailed information.\n\n"
-    "All suggestions should be in {language}.\n\n"
-    "Remember that you are a League of Legends assistant, so keep the suggestions focused on game mechanics, "
-    "champions, strategies, or other relevant topics."
+class FollowUpSuggestions(BaseModel):
+    suggestions: List[str] = Field(description="List of helpful follow-up questions.")
+
+template = (
+    "You are an assistant helping users continue their conversation in a helpful way.\n\n"
+    "Conversation:\n{conversation}\n\n"
+    "{context_block}"
+    "{match_block}"
+    "Based on this, suggest one or two helpful and relevant follow-up questions the user might ask next and can answer"
+    "from the given context. Focus on information the human player might be interested in.\n"
+    "Respond with only the questions in a Python list of strings. Do not suggest follow ups you cannot answer."
+    "Make sure the questions are relevant and different from each other."
 )
 
-# Create prompt template
-followup_prompt = PromptTemplate.from_template(FOLLOWUP_TEMPLATE)
+prompt = PromptTemplate.from_template(template)
 
 def handle_followup_suggestions_request(
-    thread_id: str,
-    previous_query: str,
-    language: str = "en",
-    model_name: str = LLMOptions.GEMINI_FLASH
-) -> FollowupResponse:
-    """
-    Generate follow-up question suggestions based on a previous query.
-    
-    Args:
-        thread_id: The conversation thread ID
-        previous_query: The previous query from the user
-        language: The language for the suggestions
-        model_name: The LLM model to use
-        
-    Returns:
-        FollowupResponse containing suggested follow-up questions
-        
-    Raises:
-        ServiceUnavailableError: If there's an error generating suggestions
-    """
+    messages: List[Dict[str, str]],
+    match: Optional[Dict] = None,
+    context: Optional[Dict] = None,
+    model_name: LLMOptions = LLMOptions.GEMINI_FLASH
+) -> List[str]:
     try:
+        # Log request
         logger.info(
-            f"Generating followup suggestions for thread {thread_id}",
-            extra={"thread_id": thread_id, "query_length": len(previous_query)}
+            f"Generating followup suggestions",
+            extra={
+                "has_messages": len(messages) > 0,
+                "has_match": match is not None,
+                "has_context": context is not None
+            }
         )
         
-        # Get LLM model
-        model = llm.get(model_name)
-        
-        # Prepare input variables
-        variables = {
-            "previous_query": previous_query,
-            "language": language
-        }
-        
-        # Generate the prompt
-        prompt = followup_prompt.format(**variables)
-        
-        # In a real implementation, we would call the model here
-        # For now, we'll generate mock suggestions
-        
-        # Generate mock suggestions
-        suggestions = [
-            FollowupSuggestion(
-                id=str(uuid4()),
-                text=f"Follow-up question {i} about {previous_query[:20]}...",
-                context={"type": "suggestion", "source": "generated"}
-            )
-            for i in range(1, 4)
-        ]
-        
-        response = FollowupResponse(suggestions=suggestions)
-        
-        logger.info(
-            f"Successfully generated {len(suggestions)} followup suggestions",
-            extra={"thread_id": thread_id, "suggestion_count": len(suggestions)}
+        # Format conversation
+        conversation = "\n".join(
+            [f"{msg['role'].capitalize()}: {msg['content']}" for msg in messages]
         )
         
-        return response
+        # Prepare variables
+        context_block = f"Context:\n{context}\n\n" if context else ""
+        match_block = f"Match info:\n{match}\n\n" if match else ""
         
+        # Create LLM model with structured output
+        model = llm.get(model_name).with_structured_output(FollowUpSuggestions)
+        
+        # Chain prompt with model
+        chain = prompt | model
+        
+        # Run chain with state
+        output = chain.invoke({
+            "conversation": conversation,
+            "context_block": context_block,
+            "match_block": match_block,
+        })
+        
+        logger.info(
+            f"Successfully generated {len(output.suggestions)} followup suggestions",
+            extra={"suggestion_count": len(output.suggestions)}
+        )
+        
+        return output.suggestions
     except Exception as e:
         logger.error(
-            f"Error generating followup suggestions: {str(e)}",
-            exc_info=True,
-            extra={"thread_id": thread_id}
+            f"Error in handle_followup_suggestions_request: {e}",
+            exc_info=True
         )
-        raise ServiceUnavailableError(
-            message="Failed to generate follow-up suggestions",
-            detail={"error": str(e), "thread_id": thread_id}
-        )
+        print(f"Error in handle_followup_suggestions_request: {e}")
+        raise
