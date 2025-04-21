@@ -70,6 +70,7 @@ def handle_chatbot_request(thread_id: str, query: str, match: dict = None, model
     try:
         config = {"configurable": {"thread_id": thread_id}}
         input_messages = [HumanMessage(content=query)]
+        print("language: ", language)
         state = {"messages": input_messages, "match": match, "modelName": modelName, "language": language}
         return app.stream(state, config, stream_mode=["messages"])
     except Exception as e:

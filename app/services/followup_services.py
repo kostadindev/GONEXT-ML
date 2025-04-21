@@ -17,10 +17,11 @@ template = (
     "Conversation:\n{conversation}\n\n"
     "{context_block}"
     "{match_block}"
-    "Based on this, suggest one or two helpful and relevant follow-up questions the user might ask next and can answer"
-    "from the given context. Focus on information the human player might be interested in.\n"
-    "Respond with only the questions in a Python list of strings. Do not suggest follow ups you cannot answer."
-    "Make sure the questions are relevant and different from each other."
+    "Based on this, suggest one or two helpful and relevant follow-up questions the user might ask next and can answer "
+    "from the given context. Focus on information the human player might be interested in.\n\n"
+    "All suggested questions should be in {language}.\n\n"
+    "Respond with only the questions in a Python list of strings. Do not suggest follow ups you cannot answer. "
+    "Make sure the questions are relevant and different from each other. Keep the suggestions short and concise."
 )
 
 prompt = PromptTemplate.from_template(template)
@@ -29,7 +30,8 @@ def handle_followup_suggestions_request(
     messages: List[Dict[str, str]],
     match: Optional[Dict] = None,
     context: Optional[Dict] = None,
-    model_name: LLMOptions = LLMOptions.GEMINI_FLASH
+    model_name: LLMOptions = LLMOptions.GEMINI_FLASH,
+    language: str = "en"
 ) -> List[str]:
     try:
         # Log request
@@ -38,7 +40,8 @@ def handle_followup_suggestions_request(
             extra={
                 "has_messages": len(messages) > 0,
                 "has_match": match is not None,
-                "has_context": context is not None
+                "has_context": context is not None,
+                "language": language
             }
         )
         
@@ -62,11 +65,12 @@ def handle_followup_suggestions_request(
             "conversation": conversation,
             "context_block": context_block,
             "match_block": match_block,
+            "language": language
         })
         
         logger.info(
             f"Successfully generated {len(output.suggestions)} followup suggestions",
-            extra={"suggestion_count": len(output.suggestions)}
+            extra={"suggestion_count": len(output.suggestions), "language": language}
         )
         
         return output.suggestions

@@ -9,8 +9,9 @@ def test_followup_endpoint_returns_200(client):
     """
     # Create a test request
     request_data = {
-        "thread_id": str(uuid.uuid4()),
-        "previous_query": "What are the best champions for top lane?",
+        "messages": [
+            {"role": "user", "content": "What are the best champions for top lane?"}
+        ],
         "language": "en"
     }
     
@@ -27,8 +28,9 @@ def test_followup_returns_api_response(client):
     """
     # Create a test request
     request_data = {
-        "thread_id": str(uuid.uuid4()),
-        "previous_query": "What are the best champions for top lane?",
+        "messages": [
+            {"role": "user", "content": "What are the best champions for top lane?"}
+        ],
         "language": "en"
     }
     
@@ -58,8 +60,7 @@ def test_followup_validates_input(client):
     """
     # Create an invalid test request missing required fields
     request_data = {
-        "thread_id": str(uuid.uuid4()),
-        # Missing previous_query
+        # Missing messages
         "language": "en"
     }
     
@@ -67,4 +68,30 @@ def test_followup_validates_input(client):
     response = client.post("/suggestions/", json=request_data)
     
     # Verify response
-    assert response.status_code == 422  # Unprocessable Entity 
+    assert response.status_code == 422  # Unprocessable Entity
+
+def test_followup_uses_specified_language(client):
+    """
+    Test that the followup endpoint uses the specified language.
+    """
+    # Create a test request with French language
+    request_data = {
+        "messages": [
+            {"role": "user", "content": "What are the best champions for top lane?"}
+        ],
+        "language": "fr"  # Request suggestions in French
+    }
+    
+    # Mock the followup service to verify language is passed
+    with patch("app.services.followup_services.handle_followup_suggestions_request") as mock_service:
+        mock_service.return_value = ["Suggestion 1", "Suggestion 2"]
+        
+        # Send the request
+        response = client.post("/suggestions/", json=request_data)
+        
+        # Verify language was passed correctly
+        _, kwargs = mock_service.call_args
+        assert kwargs["language"] == "fr"
+        
+        # Verify response status
+        assert response.status_code == 200 
