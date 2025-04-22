@@ -199,7 +199,9 @@ This project is licensed under the Creative Commons Attribution-NonCommercial 4.
 Under the following terms:
 
 - Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-- NonCommercial — You may not use the material for commercial purposes.
+- NonCommercial — You may not use the material for commercial purposes without explicit permission.
+
+**Commercial Use**: If you wish to use this project for commercial purposes, please contact the author directly to discuss licensing terms.
 
 See the [LICENSE](LICENSE) file for the full license text.
 
