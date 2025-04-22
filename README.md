@@ -1,8 +1,25 @@
 # **GONEXT** - League of Legends Assistant API
 
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/downloads/)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Code Coverage](https://img.shields.io/badge/coverage-79%25-green)](https://github.com/yourusername/gonext-ml)
+
 This is the ML server for **GONEXT** - a GenAI-powered assistant tailored for League of Legends players.
 
 **GONEXT** delivers real-time and personalized strategies, matchups, synergies, and builds. By harnessing the Riot API, **GONEXT** retrieves live game data—covering both allied and enemy players—and employs large language models to offer context-specific guidance for every match.
+
+## Table of Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Getting Started](#getting-started)
+- [Documentation](#documentation)
+- [Testing](#testing)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Support](#support)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
 
 ## Features
 
@@ -26,46 +43,52 @@ The application follows a clean architecture with the following components:
 
 - Python 3.9+
 - Poetry (recommended) or pip
+- Riot Games API Key (for game data access)
+- OpenAI API Key (for GPT models)
+- Google Gemini API Key (for Gemini models)
 
 ### Installation
 
 1. Clone the repository:
-   ```
+   ```bash
    git clone https://github.com/yourusername/gonext-ml.git
    cd gonext-ml
    ```
 
 2. Create a virtual environment:
-   ```
+   ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 3. Install dependencies:
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
 
 4. Set up environment variables:
-   ```
+   ```bash
    cp .env.sample .env
    ```
    
    Edit `.env` to include your API keys:
    ```
-   openai_api_key=your_openai_key_here
-   gemini_api_key=your_gemini_key_here
+   RIOT_API_KEY=your_riot_key_here
+   OPENAI_API_KEY=your_openai_key_here
+   GEMINI_API_KEY=your_gemini_key_here
    ```
 
 ### Running the Application
 
 Start the development server:
 
-```
+```bash
 uvicorn app.main:app --reload
 ```
 
 The API will be available at http://localhost:8000
+
+## Documentation
 
 ### API Documentation
 
@@ -74,23 +97,27 @@ Once the server is running, access the interactive API documentation at:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+### Architecture Documentation
+
+For detailed architecture documentation, please refer to the [ARCHITECTURE.md](docs/ARCHITECTURE.md) file.
+
 ## Testing
 
 Run tests using pytest:
 
-```
+```bash
 pytest
 ```
 
 For test coverage report:
 
-```
+```bash
 pytest --cov=app --cov-report=html
 ```
 
 This will generate an HTML coverage report in the `htmlcov/` directory.
 
-## Test Coverage Report
+### Test Coverage Report
 
 The current test coverage is **79%** overall. Key coverage metrics:
 
@@ -106,88 +133,61 @@ The current test coverage is **79%** overall. Key coverage metrics:
 | Logger | 87% |
 | Game Services | 87-91% |
 
-### Coverage Analysis
+## Security
 
-- **Well Tested Areas**:
-  - Data models (100% coverage)
-  - LLM singleton pattern (96-100%)
-  - Application setup (96%)
-  - Utility services (87-91%)
+### API Key Security
 
-- **Areas Needing Improvement**:
-  - Chatbot services (56%): Core functions like `call_model` and `handle_chatbot_request` need more tests
-  - Chatbot router (57%): The streaming response mechanism is not fully tested
-  - Error handling (69%): Some error cases are not covered
+- Never commit API keys to version control
+- Use environment variables for sensitive data
+- Rotate API keys regularly
+- Follow the principle of least privilege
 
-### Highest Priority Test Improvements:
+### Rate Limiting
 
-1. Add tests for the `chatbot_services.py` module, particularly:
-   - The LangGraph workflow execution
-   - Response streaming functionality
-   - Error handling scenarios
-
-2. Improve router testing for streaming responses
-
-3. Enhance test mocking of LLM response formats
-
-## Project Structure
-
-```
-gonext-ml/
-├── app/
-│   ├── models/         # Pydantic models and data structures
-│   ├── routers/        # API endpoints and route handlers
-│   ├── services/       # Business logic and services
-│   ├── llm/            # LLM integration and abstraction
-│   ├── utils/          # Utilities, logging, and error handling
-│   ├── config.py       # Configuration settings
-│   ├── dependencies.py # Dependency injection
-│   └── main.py         # Application entry point
-├── tests/              # Test suite
-├── .env                # Environment variables (not in version control)
-├── .env.sample         # Sample environment file
-├── requirements.txt    # Dependencies
-└── README.md           # This file
-```
-
-## Key Components
-
-### Chatbot Service
-
-The chatbot service uses LangGraph for conversation management with these components:
-
-1. **System Prompt**: Configurable template with language support that instructs the LLM to act as a League of Legends assistant
-2. **State Management**: Thread-based conversation state with message history
-3. **LLM Abstraction**: Singleton pattern for managing multiple LLM providers (OpenAI and Google Gemini)
-4. **Response Streaming**: FastAPI streaming responses for real-time chat interaction
-
-### LLM Integration
-
-The system supports multiple LLM providers through a singleton pattern:
-
-- **OpenAI**: GPT-4o-mini model
-- **Google**: Gemini 2.0 Flash model
-- Extendable to support additional models
-
-### Error Handling
-
-Comprehensive error handling with custom error types:
-- `ServiceUnavailableError`: For LLM service issues
-- `InvalidInputError`: For input validation failures
-
-## Screenshots
-
-![Chatbot Interface](https://github.com/user-attachments/assets/dacc5906-e871-4150-a780-723c81e2d362)
-
-![Game Analysis](https://github.com/user-attachments/assets/205a5b4c-8dd4-439d-821f-9ddc5dd57c35)
+The application implements rate limiting to prevent abuse:
+- Default: 100 requests per minute
+- Configurable through environment variables
 
 ## Contributing
+
+We welcome contributions from the community! Please follow these guidelines:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature-name`
 3. Commit your changes: `git commit -m 'Add some feature'`
 4. Push to the branch: `git push origin feature/your-feature-name`
 5. Submit a pull request
+
+### Pull Request Guidelines
+
+- Ensure all tests pass
+- Update documentation as needed
+- Follow the existing code style
+- Include tests for new features
+- Update the CHANGELOG.md
+
+### Code Style
+
+We follow PEP 8 guidelines. Use `black` for code formatting:
+
+```bash
+black .
+```
+
+## Support
+
+For support, please:
+
+1. Check the [documentation](docs/)
+2. Search existing [issues](https://github.com/yourusername/gonext-ml/issues)
+3. Create a new issue if needed
+
+## Acknowledgments
+
+- [Riot Games](https://developer.riotgames.com/) for their API
+- [OpenAI](https://openai.com/) for GPT models
+- [Google](https://ai.google.dev/) for Gemini models
+- [FastAPI](https://fastapi.tiangolo.com/) for the web framework
 
 ## License
 
