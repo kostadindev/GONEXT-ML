@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
 import uuid
-from app.models.response import FollowupResponse, FollowupSuggestion
 
 def test_followup_endpoint_returns_200(client):
     """
@@ -20,11 +19,11 @@ def test_followup_endpoint_returns_200(client):
     
     # Verify response
     assert response.status_code == 200
-    assert response.json()["status"] == "success"
+    assert isinstance(response.json(), list)
 
-def test_followup_returns_api_response(client):
+def test_followup_returns_string_list(client):
     """
-    Test that the followup endpoint returns a properly structured API response.
+    Test that the followup endpoint returns a list of strings.
     """
     # Create a test request
     request_data = {
@@ -34,25 +33,22 @@ def test_followup_returns_api_response(client):
         "language": "en"
     }
     
-    # Send the request
-    response = client.post("/suggestions/", json=request_data)
-    
-    # Verify response structure
-    assert response.status_code == 200
-    
-    # Check response format
-    response_data = response.json()
-    assert "status" in response_data
-    assert response_data["status"] == "success"
-    assert "data" in response_data
-    assert "suggestions" in response_data["data"]
-    assert isinstance(response_data["data"]["suggestions"], list)
-    
-    # Check a suggestion's structure
-    if response_data["data"]["suggestions"]:
-        suggestion = response_data["data"]["suggestions"][0]
-        assert "id" in suggestion
-        assert "text" in suggestion
+    # Mock the response
+    with patch("app.services.followup_services.handle_followup_suggestions_request") as mock_service:
+        mock_service.return_value = ["Question 1?", "Question 2?"]
+        
+        # Send the request
+        response = client.post("/suggestions/", json=request_data)
+        
+        # Verify response structure
+        assert response.status_code == 200
+        
+        # Check response format
+        suggestions = response.json()
+        assert isinstance(suggestions, list)
+        assert len(suggestions) == 2
+        assert suggestions[0] == "Question 1?"
+        assert suggestions[1] == "Question 2?"
 
 def test_followup_validates_input(client):
     """
