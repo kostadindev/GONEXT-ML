@@ -4,6 +4,8 @@ from app.routers import chatbot, tips, followups, game_overview
 from app.utils.error_handler import setup_error_handlers
 from app.utils.logger import get_logger
 from app.config import settings
+from app.services.chatbot_services import startup_mcp_connection, shutdown_mcp_connection
+import asyncio
 
 # Get logger for main module
 logger = get_logger("main")
@@ -42,6 +44,19 @@ def create_app() -> FastAPI:
     
     # Set up error handlers
     setup_error_handlers(app)
+    
+    # Add startup and shutdown event handlers for MCP connection
+    @app.on_event("startup")
+    async def startup_event():
+        """Initialize MCP connection on application startup."""
+        logger.info("Application startup: Initializing MCP connection...")
+        await startup_mcp_connection()
+    
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        """Clean up MCP connection on application shutdown."""
+        logger.info("Application shutdown: Closing MCP connection...")
+        await shutdown_mcp_connection()
     
     # Root endpoint
     @app.get("/", tags=["Health"])

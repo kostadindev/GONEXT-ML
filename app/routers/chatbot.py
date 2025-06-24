@@ -53,7 +53,24 @@ def generate_chatbot_response_stream(
             match=match or {}, 
             language=language
         ):
-            yield chunk[1][0].content
+            # Handle the ReACT agent streaming format
+            if hasattr(chunk, 'content'):
+                # Direct message object
+                yield chunk.content
+            elif isinstance(chunk, dict) and 'content' in chunk:
+                # Dictionary with content key
+                yield chunk['content']
+            elif isinstance(chunk, (list, tuple)) and len(chunk) > 0:
+                # Handle tuple/list format from ReACT agent
+                if hasattr(chunk[0], 'content'):
+                    yield chunk[0].content
+                elif isinstance(chunk[0], dict) and 'content' in chunk[0]:
+                    yield chunk[0]['content']
+                elif len(chunk) > 1 and hasattr(chunk[1], 'content'):
+                    yield chunk[1].content
+            else:
+                # Fallback: convert to string if it's a simple value
+                yield str(chunk)
             
     except Exception as e:
         logger.error(f"Error generating response stream: {str(e)}", exc_info=True, extra={"request_id": request_id})
