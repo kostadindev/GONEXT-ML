@@ -57,19 +57,26 @@ mcp_tools = []
 async def initialize_mcp_connection():
     """Initialize connection to the league-mcp server on stdio."""
     global mcp_client, mcp_tools
-    
     try:
         logger.info("Initializing MCP connection to league-mcp server")
         
-        # Create MCP client with league-mcp server configuration
-        mcp_client = MultiServerMCPClient({
-            "league-mcp": {
-                "command": "league-mcp",  # Assuming league-mcp is in PATH
-                "args": [],
-                "transport": "stdio",
-            }
-        })
+        # Check if league-mcp command is available
+        import shutil
+        league_mcp_path = shutil.which("league-mcp")
         
+        # Create MCP client with league-mcp server configuration
+        config = {
+            "league-mcp": {
+                "command": "league-mcp",  # Using the installed pip package
+                "args": [],  # Arguments for the command
+                "transport": "stdio",  # Specify the transport type
+                "env": {
+                    "RIOT_API_KEY": settings.riot_api_key
+                }
+            }
+        }
+        
+        mcp_client = MultiServerMCPClient(config)
         
         # Get available tools from the MCP server
         mcp_tools = await mcp_client.get_tools()
@@ -77,7 +84,7 @@ async def initialize_mcp_connection():
         logger.info(f"Successfully connected to league-mcp MCP server. Available tools: {[tool.name for tool in mcp_tools]}")
         
     except Exception as e:
-        logger.error(f"Failed to connect to league-mcp MCP server: {e}")
+        logger.error(f"Failed to connect to league-mcp MCP server: {type(e).__name__}: {str(e)}")
         mcp_tools = []  # Fallback to empty tools list
 
 def get_mcp_tools():
@@ -170,16 +177,6 @@ def create_chatbot_agent(model_name: str = "gemini-2.0-flash"):
     
     logger.info(f"Creating ReACT agent with {len(tools)} MCP tools: {[tool.name for tool in tools] if tools else 'No tools available'}")
     
-    # Print detailed tool information for debugging
-    if tools:
-        print(f"\n🤖 Creating ReACT Agent with {len(tools)} tools:")
-        for i, tool in enumerate(tools, 1):
-            print(f"  {i}. {tool.name}")
-            if hasattr(tool, 'description') and tool.description:
-                print(f"     {tool.description}")
-    else:
-        print(f"\n🤖 Creating ReACT Agent with NO tools (league-mcp server not available)")
-    
     agent = create_react_agent(
         model=model,
         tools=tools,
@@ -252,7 +249,7 @@ def handle_chatbot_request(thread_id: str, query: str, match: dict = None, model
         return logged_stream()
         
     except Exception as e:
-        print(f"Error in handle_chatbot_request: {e}")
+        logger.error(f"Error in handle_chatbot_request: {e}")
         return "An error occurred while processing your request. Please try again later."
 
 # Startup function to initialize MCP connection
@@ -262,30 +259,14 @@ async def startup_mcp_connection():
         await initialize_mcp_connection()
         logger.info("MCP connection initialized successfully on startup")
         
-        # Print available tools for debugging
+        # Log available tools
         if mcp_tools:
-            print("\n" + "="*50)
-            print("🔧 AVAILABLE MCP TOOLS ON STARTUP:")
-            print("="*50)
-            for i, tool in enumerate(mcp_tools, 1):
-                print(f"{i}. {tool.name}")
-                if hasattr(tool, 'description') and tool.description:
-                    print(f"   Description: {tool.description}")
-                print()
-            print("="*50 + "\n")
+            logger.info(f"Available MCP tools on startup: {len(mcp_tools)} tools - {[tool.name for tool in mcp_tools]}")
         else:
-            print("\n" + "="*50)
-            print("⚠️  NO MCP TOOLS AVAILABLE")
-            print("   - league-mcp server may not be running")
-            print("   - Check if 'league-mcp' command is in PATH")
-            print("="*50 + "\n")
+            logger.warning("No MCP tools available - league-mcp server may not be running or 'league-mcp' command not in PATH")
             
     except Exception as e:
         logger.error(f"Failed to initialize MCP connection on startup: {e}")
-        print("\n" + "="*50)
-        print("❌ FAILED TO INITIALIZE MCP TOOLS")
-        print(f"   Error: {e}")
-        print("="*50 + "\n")
 
 # Function to gracefully close MCP connection
 async def shutdown_mcp_connection():
@@ -293,7 +274,9 @@ async def shutdown_mcp_connection():
     global mcp_client
     try:
         if mcp_client:
-            await mcp_client.close()
+            # MCP client cleanup (if close method exists)
+            if hasattr(mcp_client, 'close'):
+                await mcp_client.close()
             logger.info("MCP connection closed successfully")
     except Exception as e:
         logger.error(f"Error closing MCP connection: {e}")

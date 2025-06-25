@@ -6,9 +6,41 @@ from app.utils.logger import get_logger
 from app.config import settings
 from app.services.chatbot_services import startup_mcp_connection, shutdown_mcp_connection
 import asyncio
+import platform
+from contextlib import asynccontextmanager
+
+# Windows-specific asyncio fixes
+if platform.system() == "Windows":
+    import asyncio
+    # Set the event loop policy for Windows to handle subprocess issues
+    if hasattr(asyncio, 'WindowsProactorEventLoopPolicy'):
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    elif hasattr(asyncio, 'WindowsSelectorEventLoopPolicy'):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Get logger for main module
 logger = get_logger("main")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application lifespan events."""
+    # Startup
+    logger.info("Application startup: Initializing MCP connection...")
+    try:
+        await startup_mcp_connection()
+        logger.info("MCP connection startup completed")
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP connection during startup: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Application shutdown: Closing MCP connection...")
+    try:
+        await shutdown_mcp_connection()
+        logger.info("MCP connection shutdown completed")
+    except Exception as e:
+        logger.error(f"Failed to close MCP connection during shutdown: {e}")
 
 def create_app() -> FastAPI:
     """
@@ -24,6 +56,7 @@ def create_app() -> FastAPI:
         title="League of Legends Assistant API",
         description="API for League of Legends game assistance and chatbot",
         version="1.0.0",
+        lifespan=lifespan,
     )
     
     # Set up CORS
@@ -44,19 +77,6 @@ def create_app() -> FastAPI:
     
     # Set up error handlers
     setup_error_handlers(app)
-    
-    # Add startup and shutdown event handlers for MCP connection
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize MCP connection on application startup."""
-        logger.info("Application startup: Initializing MCP connection...")
-        await startup_mcp_connection()
-    
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Clean up MCP connection on application shutdown."""
-        logger.info("Application shutdown: Closing MCP connection...")
-        await shutdown_mcp_connection()
     
     # Root endpoint
     @app.get("/", tags=["Health"])

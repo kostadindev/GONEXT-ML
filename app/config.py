@@ -19,11 +19,12 @@ class Settings(BaseSettings):
     """
     # Environment settings
     APP_ENV: Environment = Environment.DEVELOPMENT
-    DEBUG: bool = True
+    APP_DEBUG: bool = True
     
     # API Keys - allow both case formats from environment
-    openai_api_key: str
-    gemini_api_key: str
+    openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    riot_api_key: Optional[str] = None
     
     # Observability settings
     langsmith_tracing: Optional[str] = None
@@ -55,10 +56,10 @@ def get_settings():
     
     # Override settings based on environment
     if env == Environment.PRODUCTION:
-        settings_obj.DEBUG = False
+        settings_obj.APP_DEBUG = False
         settings_obj.LOG_LEVEL = "WARNING"
     elif env == Environment.TESTING:
-        settings_obj.DEBUG = True
+        settings_obj.APP_DEBUG = True
         settings_obj.LOG_LEVEL = "DEBUG"
     
     return settings_obj
