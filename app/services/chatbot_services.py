@@ -2,6 +2,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import HumanMessage, BaseMessage, SystemMessage, AIMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.tools.base import ToolException
 from app.llm.llm import llm
 from app.llm.llm_manager import LLMOptions
 from app.config import settings
@@ -64,6 +66,12 @@ async def initialize_mcp_connection():
         import shutil
         league_mcp_path = shutil.which("league-mcp")
         
+        if not league_mcp_path:
+            logger.error("league-mcp command not found in PATH")
+            return
+        
+        logger.info(f"Found league-mcp at: {league_mcp_path}")
+        
         # Create MCP client with league-mcp server configuration
         config = {
             "league-mcp": {
@@ -76,43 +84,43 @@ async def initialize_mcp_connection():
             }
         }
         
+        logger.info(f"Creating MCP client with config: {config}")
         mcp_client = MultiServerMCPClient(config)
         
         # Get available tools from the MCP server
-        mcp_tools = await mcp_client.get_tools()
+        logger.info("Fetching tools from MCP server...")
+        raw_tools = await mcp_client.get_tools()
+        
+        # Convert MCP tools to sync-compatible tools for ReACT agent
+        mcp_tools = []
+        for tool in raw_tools:
+            try:
+                logger.info(f"Processing tool '{tool.name}' of type {type(tool)}")
+                
+                # For MCP tools, we need to use them as-is and let langchain-mcp-adapters handle the sync/async
+                # The issue might be with the ReACT agent configuration
+                mcp_tools.append(tool)
+                
+                # Log tool details for debugging
+                logger.info(f"Tool '{tool.name}': {tool.description if hasattr(tool, 'description') else 'No description'}")
+                
+            except Exception as tool_error:
+                logger.error(f"Failed to process tool '{tool.name}': {tool_error}")
+                continue
         
         logger.info(f"Successfully connected to league-mcp MCP server. Available tools: {[tool.name for tool in mcp_tools]}")
         
+        if not mcp_tools:
+            logger.warning("No MCP tools were successfully loaded")
+        
     except Exception as e:
-        logger.error(f"Failed to connect to league-mcp MCP server: {type(e).__name__}: {str(e)}")
+        logger.error(f"Failed to connect to league-mcp MCP server: {type(e).__name__}: {str(e)}", exc_info=True)
         mcp_tools = []  # Fallback to empty tools list
 
 def get_mcp_tools():
-    """Get the current MCP tools, initializing connection if needed."""
+    """Get the current MCP tools."""
     global mcp_tools
-    
-    if mcp_tools is None or len(mcp_tools) == 0:
-        # Try to initialize connection synchronously
-        try:
-            # Check if we're in an async context
-            try:
-                loop = asyncio.get_running_loop()
-                # If we're already in an async context, we can't run another event loop
-                logger.warning("Already in async context, MCP tools may not be available immediately")
-                return []
-            except RuntimeError:
-                # No running event loop, we can create one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(initialize_mcp_connection())
-                finally:
-                    loop.close()
-        except Exception as e:
-            logger.error(f"Failed to get MCP tools: {e}")
-            return []
-    
-    return mcp_tools
+    return mcp_tools if mcp_tools else []
 
 # Counter to track ReACT agent iterations
 iteration_counters = {}
@@ -172,10 +180,14 @@ def create_chatbot_agent(model_name: str = "gemini-2.0-flash"):
     """Create a ReACT agent for the chatbot with MCP tools."""
     model = llm.get(model_name)
     
-    # Get MCP tools from the league-mcp server (use cached tools)
-    tools = mcp_tools if mcp_tools else []
+    # Get MCP tools from the league-mcp server
+    tools = get_mcp_tools()
     
     logger.info(f"Creating ReACT agent with {len(tools)} MCP tools: {[tool.name for tool in tools] if tools else 'No tools available'}")
+    
+    # Don't create agent if no tools are available
+    if not tools:
+        logger.warning("No MCP tools available - creating agent without tools. The agent may not be able to access League of Legends data.")
     
     agent = create_react_agent(
         model=model,
@@ -193,12 +205,20 @@ _agent_cache = {}
 
 def get_agent(model_name: str = "gemini-2.0-flash"):
     """Get or create an agent for the specified model."""
-    if model_name not in _agent_cache:
-        _agent_cache[model_name] = create_chatbot_agent(model_name)
+    # Clear cache if we have new tools available
+    if model_name in _agent_cache:
+        current_tools = get_mcp_tools()
+        if len(current_tools) > 0:
+            # We have tools now, recreate the agent
+            logger.info(f"Recreating agent for {model_name} with {len(current_tools)} tools")
+            _agent_cache[model_name] = create_chatbot_agent(model_name)
+        return _agent_cache[model_name]
+    
+    _agent_cache[model_name] = create_chatbot_agent(model_name)
     return _agent_cache[model_name]
 
 # Function to handle chatbot requests with language support
-def handle_chatbot_request(thread_id: str, query: str, match: dict = None, modelName="gemini-1.5-flash", language="English"):
+async def handle_chatbot_request(thread_id: str, query: str, match: dict = None, modelName="gemini-1.5-flash", language="English"):
     """Handle chatbot requests using the ReACT agent."""
     try:
         config = {"configurable": {"thread_id": thread_id}}
@@ -226,14 +246,14 @@ def handle_chatbot_request(thread_id: str, query: str, match: dict = None, model
         if state_key in iteration_counters:
             del iteration_counters[state_key]
         
-        # Stream the agent response
-        stream = agent.stream(state, config, stream_mode="messages")
+        # Stream the agent response - use astream for MCP tools async compatibility
+        stream = agent.astream(state, config, stream_mode="messages")
         
         # Wrap the stream to add completion logging and iteration tracking
-        def logged_stream():
+        async def logged_stream():
             total_chunks = 0
             iteration_count = 0
-            for chunk in stream:
+            async for chunk in stream:
                 total_chunks += 1
                 
                 # Log response chunks
@@ -253,11 +273,20 @@ def handle_chatbot_request(thread_id: str, query: str, match: dict = None, model
         return "An error occurred while processing your request. Please try again later."
 
 # Startup function to initialize MCP connection
+def clear_agent_cache():
+    """Clear the agent cache to force recreation with new tools."""
+    global _agent_cache
+    _agent_cache.clear()
+    logger.info("Agent cache cleared - agents will be recreated with updated tools")
+
 async def startup_mcp_connection():
     """Initialize MCP connection on application startup."""
     try:
         await initialize_mcp_connection()
         logger.info("MCP connection initialized successfully on startup")
+        
+        # Clear agent cache so agents are recreated with tools
+        clear_agent_cache()
         
         # Log available tools
         if mcp_tools:

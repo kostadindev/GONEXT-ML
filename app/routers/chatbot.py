@@ -16,14 +16,14 @@ router = APIRouter()
 logger = get_logger("chatbot_router")
 
 
-def generate_chatbot_response_stream(
+async def generate_chatbot_response_stream(
     thread_id: str, 
     query: str, 
     modelName: str, 
     match: Optional[Dict] = None, 
     language: str = "en",
     request_metadata: Optional[Dict[str, Any]] = None
-) -> Generator[str, None, None]:
+):
     """
     Generates a stream of chatbot responses for the given thread and query.
 
@@ -46,7 +46,7 @@ def generate_chatbot_response_stream(
             extra={"request_id": request_id, "query": query, "model": modelName}
         )
         
-        for chunk in handle_chatbot_request(
+        async for chunk in await handle_chatbot_request(
             thread_id=thread_id, 
             query=query, 
             modelName=modelName, 
