@@ -1,176 +1,206 @@
 import asyncio
-import sys
 import logging
+from typing import Optional, Dict, Any, AsyncGenerator
+import threading
+import queue
 
 from app.agents.chatbot_agent import ChatbotAgent
+from app.utils.logger import get_logger
 
-# Set up logging - only show warnings and errors by default
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Get module logger
+logger = get_logger("chatbot_services")
 
-def create_cli_interface(client: ChatbotAgent):
-    """Create and run the command-line interface"""
-    
-    def print_header():
-        """Print the application header"""
-        print("\n" + "="*80)
-        print("🎮 League of Legends MCP Client - Command Line Interface")
-        print("="*80)
-        print("AI-powered League of Legends assistant with access to Riot Games API")
-        print()
-        
-        # Show connection status
-        status_info = client.get_connection_status()
-        print(f"Status: {status_info['status']}")
-        print()
-        
-        if client.is_connected:
-            print("💡 Example Queries:")
-            print("  • 'What lane and against who did Sneaky#NA69 play in the last match?'")
-            print("  • 'What is the current rank of Sneaky#NA69?'")
-            print("  • 'Show me ddragon://champions'")
-            print("  • 'Use find_player_stats for Sneaky#NA69'")
-            print()
-            print("Commands:")
-            print("  • 'status' - Show connection status and available tools")
-            print("  • 'help' - Show this help message")
-            print("  • 'quit' or 'exit' - Exit the application")
-            print()
-    
-    def print_status():
-        """Print detailed status information"""
-        status_info = client.get_connection_status()
-        print(f"\n{status_info['status']}")
-        
-        if client.is_connected:
-            print(f"\n🔧 Available Tools:")
-            print(status_info['tools'])
-            
-            print(f"\n📚 Available Resources:")
-            print(status_info['resources'])
-            
-            print(f"\n🚀 Available Prompts:")
-            print(status_info['prompts'])
-    
-    def print_help():
-        """Print help information"""
-        print("\n" + "="*60)
-        print("🎮 League of Legends MCP Client - Help")
-        print("="*60)
-        print()
-        print("TOOL-BASED QUERIES:")
-        print("  Ask natural language questions about League of Legends players,")
-        print("  matches, rankings, and more. The AI will use real-time API tools.")
-        print()
-        print("  Examples:")
-        print("    'What champions did Sneaky#NA69 play in the last 3 matches?'")
-        print("    'Is Faker#T1 currently in a game?'")
-        print("    'Show me the challenger ladder for ranked solo queue'")
-        print()
-        print("RESOURCE QUERIES:")
-        print("  Access static game data by typing resource URIs directly.")
-        print()
-        print("  Data Dragon Resources (require internet):")
-        print("    'ddragon://champions' - All champions summary")
-        print("    'ddragon://items' - Complete items database")
-        print("    'ddragon://summoner_spells' - Summoner spells data")
-        print()
-        print("  Constants Resources (work offline):")
-        print("    'constants://queues' - Queue types and IDs")
-        print("    'constants://ranked_tiers' - Ranking system details")
-        print("    'constants://maps' - Map information")
-        print()
-        print("WORKFLOW EXECUTION:")
-        print("  Execute complex workflows by referencing prompt names.")
-        print()
-        print("  Examples:")
-        print("    'Use find_player_stats for Sneaky#NA69'")
-        print("    'Use champion_analysis for Azir'")
-        print("    'Use player_improvement for MyName#NA1 targeting Gold as ADC'")
-        print()
-        print("COMMANDS:")
-        print("  'status' - Show connection status and available capabilities")
-        print("  'help' - Show this help message")
-        print("  'quit' or 'exit' - Exit the application")
-        print()
-    
-    # Start the CLI
-    print_header()
-    
-    # Chat history for context
-    chat_history = []
+# Global chatbot agent instance
+_chatbot_agent: Optional[ChatbotAgent] = None
+
+
+async def startup_mcp_connection():
+    """Initialize the MCP connection during application startup."""
+    global _chatbot_agent
     
     try:
-        while True:
-            try:
-                # Get user input
-                user_input = input("🎮 Ask about League of Legends: ").strip()
-                
-                if not user_input:
-                    continue
-                
-                # Handle commands
-                if user_input.lower() in ['quit', 'exit']:
-                    print("\n👋 Thanks for using the League of Legends MCP Client!")
-                    break
-                elif user_input.lower() == 'status':
-                    print_status()
-                    continue
-                elif user_input.lower() == 'help':
-                    print_help()
-                    continue
-                
-                # Add user message to history
-                chat_history.append({"role": "user", "content": user_input})
-                
-                # Process the query
-                print()  # Add some space before processing
-                response = client.process_query(user_input, chat_history, match=None)
-                
-                # Add assistant response to history
-                chat_history.append({"role": "assistant", "content": response})
-                
-                # Print the response
-                print(f"\n🤖 {response}")
-                print("\n" + "-"*80)
-                
-            except KeyboardInterrupt:
-                print("\n\n👋 Thanks for using the League of Legends MCP Client!")
-                break
-            except EOFError:
-                print("\n\n👋 Thanks for using the League of Legends MCP Client!")
-                break
-            except Exception as e:
-                print(f"\n❌ Error: {e}")
-                continue
-    
-    except Exception as e:
-        print(f"❌ Fatal error: {e}")
-        return 1
-    
-    return 0
-
-def main():
-    client = ChatbotAgent()
-    
-    try:
+        logger.info("Initializing ChatbotAgent and MCP connection...")
+        _chatbot_agent = ChatbotAgent()
+        
         # Start the persistent event loop
-        print("🔧 Starting event loop...")
-        client._start_event_loop()
+        _chatbot_agent._start_event_loop()
         
-        print("🔗 Connecting to MCP server...")
-        client._run_in_loop(client.connect_to_server())
-        print("✅ Connected successfully!")
-        
-        # Start the CLI interface
-        return create_cli_interface(client)
+        # Connect to MCP server
+        await _chatbot_agent.connect_to_server()
+        logger.info("MCP connection established successfully")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
-        logger.error(f"Startup error: {e}")
-        return 1
-    finally:
-        asyncio.run(client.cleanup())
+        logger.error(f"Failed to initialize MCP connection: {e}")
+        raise
 
-if __name__ == "__main__":
-    sys.exit(main())
+
+async def shutdown_mcp_connection():
+    """Shutdown the MCP connection during application shutdown."""
+    global _chatbot_agent
+    
+    try:
+        if _chatbot_agent:
+            logger.info("Shutting down MCP connection...")
+            await _chatbot_agent.cleanup()
+            _chatbot_agent = None
+            logger.info("MCP connection shutdown completed")
+    except Exception as e:
+        logger.error(f"Error during MCP connection shutdown: {e}")
+
+
+async def handle_chatbot_request(
+    thread_id: str,
+    query: str,
+    modelName: str,
+    match: Optional[Dict] = None,
+    language: str = "en"
+) -> AsyncGenerator[str, None]:
+    """
+    Handle chatbot request and yield response chunks with real-time tool updates.
+    
+    Args:
+        thread_id: The conversation thread ID
+        query: The user query
+        modelName: The model name to use
+        match: Optional match data
+        language: The response language
+        
+    Yields:
+        Response chunks from the chatbot including tool call updates
+    """
+    global _chatbot_agent
+    
+    if not _chatbot_agent:
+        logger.error("ChatbotAgent not initialized")
+        yield "❌ Chatbot service not available. Please try again later."
+        return
+    
+    if not _chatbot_agent.is_connected:
+        logger.error("ChatbotAgent not connected to MCP server")
+        yield "❌ Chatbot service not connected. Please try again later."
+        return
+    
+    try:
+        logger.info(f"Processing chatbot request for thread {thread_id}")
+        
+        # Clear the message queue to ensure we get fresh tool call updates
+        while not _chatbot_agent.message_queue.empty():
+            try:
+                _chatbot_agent.message_queue.get_nowait()
+            except queue.Empty:
+                break
+        
+        # Start processing the query asynchronously
+        result_container = {"result": None, "error": None, "completed": False}
+        
+        def run_query_async():
+            try:
+                # Convert history for this thread (empty for now, could be expanded)
+                history = []
+                result = _chatbot_agent._run_in_loop(
+                    _chatbot_agent.process_query_async(query, history, match)
+                )
+                result_container["result"] = result
+                result_container["completed"] = True
+            except Exception as e:
+                result_container["error"] = str(e)
+                result_container["completed"] = True
+        
+        # Start the query processing in a background thread
+        query_thread = threading.Thread(target=run_query_async)
+        query_thread.start()
+        
+        # Monitor for tool calls and provide real-time updates
+        current_tool = None
+        tool_messages_sent = []
+        
+        while not result_container["completed"]:
+            try:
+                # Check for tool call messages with timeout
+                message_type, *args = _chatbot_agent.message_queue.get(timeout=0.5)
+                
+                if message_type == "tool_start":
+                    tool_name, input_str = args
+                    current_tool = tool_name
+                    # Format input as JSON-like structure for the custom markdown
+                    import json
+                    try:
+                        # Try to parse as JSON first
+                        input_data = json.loads(input_str)
+                        formatted_input = json.dumps(input_data, indent=2)
+                    except:
+                        # If not JSON, wrap in quotes
+                        formatted_input = f'"{input_str}"'
+                    
+                    tool_msg = f"@tool[{tool_name}]{{\n{formatted_input}\n}}\n\n"
+                    tool_messages_sent.append(tool_msg)
+                    yield tool_msg
+                
+                elif message_type == "tool_end":
+                    output = args[0]
+                    if current_tool:
+                        # Format output as JSON-like structure
+                        import json
+                        try:
+                            # Try to parse as JSON first
+                            output_data = json.loads(output)
+                            formatted_output = json.dumps(output_data, indent=2)
+                        except:
+                            # If not JSON, wrap in quotes and truncate if too long
+                            display_output = output[:150] + "..." if len(output) > 150 else output
+                            formatted_output = f'"{display_output}"'
+                        
+                        tool_msg = f"@tool[{current_tool}.result]{{\n{formatted_output}\n}}\n\n"
+                        tool_messages_sent.append(tool_msg)
+                        yield tool_msg
+                        current_tool = None
+                
+                elif message_type == "tool_error":
+                    error = args[0]
+                    if current_tool:
+                        tool_msg = f"@tool[{current_tool}.error]{{\n  \"error\": \"{error}\"\n}}\n\n"
+                        tool_messages_sent.append(tool_msg)
+                        yield tool_msg
+                        current_tool = None
+            
+            except queue.Empty:
+                # No tool messages, continue waiting
+                continue
+            except Exception as e:
+                logger.error(f"Error processing tool message: {e}")
+                continue
+        
+        # Wait for the query thread to complete
+        query_thread.join(timeout=30)  # 30 second timeout
+        
+        if result_container["error"]:
+            yield f"\n❌ Error processing request: {result_container['error']}"
+            return
+        
+        if not result_container["result"]:
+            yield "\n❌ No response generated."
+            return
+        
+        # Yield the final response
+        final_response = result_container["result"]
+        
+        # Add a separator if we sent tool messages
+        if tool_messages_sent:
+            yield "\n" + "="*50 + "\n"
+        
+        # Stream the final response in chunks
+        chunk_size = 100
+        for i in range(0, len(final_response), chunk_size):
+            chunk = final_response[i:i + chunk_size]
+            yield chunk
+            # Small delay to simulate more natural streaming
+            await asyncio.sleep(0.01)
+            
+    except Exception as e:
+        logger.error(f"Error processing chatbot request: {e}")
+        yield f"❌ Error processing request: {str(e)}"
+
+
+def get_chatbot_agent() -> Optional[ChatbotAgent]:
+    """Get the global chatbot agent instance."""
+    return _chatbot_agent

@@ -46,7 +46,7 @@ async def generate_chatbot_response_stream(
             extra={"request_id": request_id, "query": query, "model": modelName}
         )
         
-        async for chunk in await handle_chatbot_request(
+        async for chunk in handle_chatbot_request(
             thread_id=thread_id, 
             query=query, 
             modelName=modelName, 
