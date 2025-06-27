@@ -2,13 +2,13 @@ import asyncio
 import sys
 import logging
 
-from app.llm.league_client import LeagueMCPClient
+from app.agents.chatbot_agent import ChatbotAgent
 
 # Set up logging - only show warnings and errors by default
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def create_cli_interface(client: LeagueMCPClient):
+def create_cli_interface(client: ChatbotAgent):
     """Create and run the command-line interface"""
     
     def print_header():
@@ -125,7 +125,7 @@ def create_cli_interface(client: LeagueMCPClient):
                 
                 # Process the query
                 print()  # Add some space before processing
-                response = client.process_query(user_input, chat_history)
+                response = client.process_query(user_input, chat_history, match=None)
                 
                 # Add assistant response to history
                 chat_history.append({"role": "assistant", "content": response})
@@ -151,7 +151,7 @@ def create_cli_interface(client: LeagueMCPClient):
     return 0
 
 def main():
-    client = LeagueMCPClient()
+    client = ChatbotAgent()
     
     try:
         # Start the persistent event loop
