@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from app.config import settings
 from app.utils.callbacks import ToolCallLogger
+from app.utils.formatters import format_match_for_llm
 
 load_dotenv()
 
@@ -42,7 +43,7 @@ class BuildsAgent:
         # Initialize callback handler for logging
         self.callback_handler = ToolCallLogger(self.message_queue)
     
-    async def process_query_async(self, query: str, history: List[Dict] = None, context: Dict = None) -> str:
+    async def process_query_async(self, query: str, history: List[Dict] = None, match: Dict = None) -> str:
         """Process a League of Legends builds-related query"""
         if not self.agent:
             return "❌ Agent not initialized. Please connect first."
@@ -67,15 +68,18 @@ class BuildsAgent:
                     elif role == "assistant":
                         input_messages.append(AIMessage(content=content))
             
-            # Prepare the query with builds context
+            # Prepare the query with match context
             enhanced_query = query
-            if context:
-                enhanced_query = f"""CONTEXT:
-{context}
+            match_to_use = match if match is not None else self.get_current_match()
+            
+            if match_to_use:
+                formatted_match = format_match_for_llm(match_to_use)
+                enhanced_query = f"""CURRENT MATCH CONTEXT:
+{formatted_match}
 
 USER QUERY: {query}
 
-Please analyze the context and respond to the user's query about League of Legends builds."""
+Please analyze the above match context and recommend an optimal 6-item build for the player marked as (YOU). Consider the team compositions, enemy champions, and game situation when making your recommendation."""
             
             # Add the current query
             if not input_messages or input_messages[-1].content != enhanced_query:
@@ -127,13 +131,37 @@ Please analyze the context and respond to the user's query about League of Legen
 
         system_prompt = """You are a League of Legends Expert recommending builds for a player.
 
-        You will be given a match with the champions of both teams.
-        You will have access to tools to check current best performing situational builds and statistics for the champion.
-        
-        Given the match and situational builds, you will need to recommend a 6 item build for the player.
-        
+You will be given a match with the champions of both teams.
+You will have access to tools to check current best performing situational builds and statistics for the champion.
 
-        """
+Given the match and situational builds, you will need to recommend a 6 item build for the player.
+
+**BUILD RECOMMENDATION GUIDELINES:**
+
+1. **Analyze the Match Context:**
+   - Identify the player's champion and role
+   - Consider enemy team composition and threats
+   - Evaluate your team's composition and needs
+   - Assess the game mode and queue type
+
+2. **Build Structure:**
+   - Recommend exactly 6 items for a full build
+   - Include core items that synergize with the champion
+   - Add situational items based on enemy threats
+   - Consider defensive items when needed
+
+3. **Reasoning:**
+   - Explain why each item is chosen
+   - Mention power spikes and timing
+   - Address specific enemy threats
+   - Consider team composition synergy
+
+4. **Adaptation:**
+   - Provide alternative items for different situations
+   - Explain when to deviate from the recommended build
+   - Consider early, mid, and late game priorities
+
+Always provide clear reasoning for your build recommendations and consider the specific match context provided."""
 
         self.agent = create_react_agent(
             model=self.model,
@@ -161,7 +189,7 @@ Please analyze the context and respond to the user's query about League of Legen
             - Champion build recommendations"""
         }
     
-    def process_query(self, query: str, history: List[Dict] = None, context: Dict = None) -> str:
+    def process_query(self, query: str, history: List[Dict] = None, match: Dict = None) -> str:
         """Process a builds query and return the response"""
         if not query.strip():
             return ""
@@ -185,7 +213,7 @@ Please analyze the context and respond to the user's query about League of Legen
             
             # Process the query in the background
             def run_query():
-                return self._run_in_loop(self.process_query_async(query, history, context))
+                return self._run_in_loop(self.process_query_async(query, history, match))
             
             result_container = {"result": None, "error": None}
             
@@ -235,6 +263,20 @@ Please analyze the context and respond to the user's query about League of Legen
             error_msg = f"Error initializing builds agent: {str(e)}"
             logger.error(error_msg)
             return f"❌ {error_msg}"
+
+    def get_default_match_data(self) -> Dict:
+        """Get the default/constant match data for testing purposes"""
+        from app.utils.formatters import match_data
+        return match_data
+    
+    def set_match_data(self, match_data: Dict):
+        """Set the current match data for the agent to use"""
+        self.current_match = match_data
+        logger.info(f"Match data set for {match_data.get('searchedSummoner', {}).get('riotId', 'unknown player')}")
+    
+    def get_current_match(self) -> Dict:
+        """Get the current match data"""
+        return getattr(self, 'current_match', None)
 
     async def cleanup(self):
         """Clean up resources"""
