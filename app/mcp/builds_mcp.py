@@ -205,10 +205,41 @@ async def get_champion_build(champion: str) -> str:
     if not html_content:
         return f"Unable to fetch build data for {champion}. Please check the champion name and try again."
     
-    build_data = extract_build_data(html_content)
-    # Set the champion name from the input parameter
-    build_data["champion_name"] = champion.title()
-    return format_build_info(build_data)
+    # Parse the HTML and find the Item Builds section
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Look for the Item Builds section within the content-container
+    content_container = soup.find(id='content-container')
+    if content_container:
+        # Search for sections containing "Item Builds" text
+        item_builds_section = None
+        
+        # Look for the specific "Item builds" link and get its containing section
+        for element in content_container.find_all('a'):
+            if 'items' in element.get('href', '') and 'Item builds' in element.get_text():
+                # Find the section containing this link
+                section = element.find_parent('section')
+                if section:
+                    item_builds_section = section
+                    break
+        
+        if item_builds_section:
+            return f"Item Builds section for {champion.title()}:\n{item_builds_section.prettify()}"
+        else:
+            # If no specific Item Builds section found, try to extract just the section with "Item builds"
+            # Look for any element containing "Item builds" and get its containing section
+            for element in content_container.find_all(text=True):
+                if 'Item builds' in element:
+                    # Find the section containing this text
+                    section = element.find_parent('section')
+                    if section:
+                        return f"Item Builds section for {champion.title()}:\n{section.prettify()}"
+            
+            # Final fallback: return the content-container
+            return f"Content container for {champion.title()}:\n{content_container.prettify()}"
+    else:
+        # Fallback to the entire HTML if no content-container found
+        return f"Full HTML content for {champion.title()}:\n{html_content}"
 
 
 @mcp.tool()
