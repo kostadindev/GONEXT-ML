@@ -3,6 +3,8 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 from bs4 import BeautifulSoup
 import re
+from langchain_google_genai import ChatGoogleGenerativeAI
+import os
 
 # Initialize FastMCP server
 mcp = FastMCP("builds")
@@ -11,6 +13,46 @@ mcp = FastMCP("builds")
 OPGG_BASE = "https://op.gg"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
+# Initialize Gemini model for HTML parsing
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    gemini_model = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0,
+        google_api_key=GEMINI_API_KEY
+    )
+else:
+    gemini_model = None
+
+
+async def extract_build_info_with_gemini(html_content: str, champion: str) -> str:
+    """Extract build information from HTML using Gemini"""
+    if not gemini_model:
+        return f"Error: Gemini API key not configured. Cannot extract build information for {champion}."
+    
+    prompt = f"""You are analyzing League of Legends champion build data from OP.GG. 
+
+Extract the following information from the HTML content for {champion}:
+
+1. **Core Items** - The most commonly built items with their pick rates
+2. **Boots** - Recommended boots with pick rates
+3. **Situational Items** - Other items that are built situationally
+4. **Item Build Order** - The typical order items are built
+5. **Win Rates** - Win rates for different item combinations if available
+6. **Key Statistics** - Any important stats like damage, survivability, etc.
+
+Format the output as a clean, readable text with clear sections. Focus on the most important and commonly used items.
+
+HTML Content:
+{html_content}
+
+Please extract and format the build information:"""
+
+    try:
+        response = await gemini_model.ainvoke(prompt)
+        return response.content
+    except Exception as e:
+        return f"Error extracting build information with Gemini: {str(e)}"
 
 async def make_opgg_request(url: str) -> str | None:
     """Make a request to OP.GG with proper error handling."""
@@ -224,7 +266,9 @@ async def get_champion_build(champion: str) -> str:
                     break
         
         if item_builds_section:
-            return f"Item Builds section for {champion.title()}:\n{item_builds_section.prettify()}"
+            # Extract information using Gemini instead of returning raw HTML
+            html_content = item_builds_section.prettify()
+            return await extract_build_info_with_gemini(html_content, champion)
         else:
             # If no specific Item Builds section found, try to extract just the section with "Item builds"
             # Look for any element containing "Item builds" and get its containing section
@@ -233,13 +277,15 @@ async def get_champion_build(champion: str) -> str:
                     # Find the section containing this text
                     section = element.find_parent('section')
                     if section:
-                        return f"Item Builds section for {champion.title()}:\n{section.prettify()}"
+                        html_content = section.prettify()
+                        return await extract_build_info_with_gemini(html_content, champion)
             
-            # Final fallback: return the content-container
-            return f"Content container for {champion.title()}:\n{content_container.prettify()}"
+            # Final fallback: try to extract from content-container
+            html_content = content_container.prettify()
+            return await extract_build_info_with_gemini(html_content, champion)
     else:
         # Fallback to the entire HTML if no content-container found
-        return f"Full HTML content for {champion.title()}:\n{html_content}"
+        return await extract_build_info_with_gemini(html_content, champion)
 
 
 @mcp.tool()
