@@ -6,6 +6,7 @@ import queue
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
@@ -13,6 +14,8 @@ from dotenv import load_dotenv
 from app.config import settings
 from app.utils.callbacks import ToolCallLogger
 from app.utils.formatters import format_match_for_llm, match_data
+# Import the MCP functions for builds
+from app.mcp.builds_mcp import get_champion_build, get_champion_stats
 
 load_dotenv()  # load environment variables from .env
 
@@ -22,6 +25,47 @@ logger = logging.getLogger(__name__)
 
 # Set specific loggers to show important info
 logging.getLogger(__name__).setLevel(logging.INFO)  # Allow INFO for our important logs
+
+# Create LangChain tool wrappers for the builds MCP functions
+@tool
+async def champion_build_tool(champion: str) -> str:
+    """Get comprehensive build analysis for a League of Legends champion from OP.GG.
+    
+    This tool provides detailed build information including:
+    - Core item combinations with pick rates and win rates (e.g., "Yun Tal -> IE -> Hurricane: 34.19% pick, 60.58% win")
+    - Recommended boots with usage statistics
+    - Situational items categorized by purpose (anti-tank, anti-heal, defensive)
+    - Complete 6-item build order progression
+    - Performance metrics for different item choices
+    - Strategic itemization priorities and reasoning
+    
+    Args:
+        champion: Champion name (e.g. jinx, yasuo, ahri)
+    
+    Returns:
+        Comprehensive build analysis with statistical data, item recommendations,
+        and strategic guidance for optimal itemization.
+    """
+    return await get_champion_build(champion)
+
+@tool  
+async def champion_stats_tool(champion: str) -> str:
+    """Get current meta statistics for a League of Legends champion from OP.GG.
+    
+    This tool provides performance metrics including:
+    - Current patch version and tier ranking (1-5 scale)
+    - Win rate, pick rate, and ban rate percentages
+    - Total games played for statistical confidence
+    - Primary position/role information
+    - Meta viability assessment
+    
+    Args:
+        champion: Champion name (e.g. jinx, yasuo, ahri)
+    
+    Returns:
+        Current meta statistics and performance data for strategic decision making.
+    """
+    return await get_champion_stats(champion)
 
 class ChatbotAgent:
     def __init__(self):
@@ -162,16 +206,21 @@ Please analyze the above match context and respond to the user's query with rele
         )
         
         # Get tools from MCP server
-        self.tools = await self.mcp_client.get_tools()
+        mcp_tools = await self.mcp_client.get_tools()
+        
+        # Add builds tools to the tool list
+        builds_tools = [champion_build_tool, champion_stats_tool]
+        self.tools = mcp_tools + builds_tools
+        
         # Note: Resources and prompts are available but not easily listable with MultiServerMCPClient
         self.resources = []  # Will be accessed on-demand
         self.prompts = []   # Will be accessed on-demand
         
-        logger.info(f"✅ Retrieved {len(self.tools)} tools from MCP server (resources and prompts available on-demand)")
+        logger.info(f"✅ Retrieved {len(mcp_tools)} tools from MCP server + {len(builds_tools)} builds tools = {len(self.tools)} total tools (resources and prompts available on-demand)")
         
         # Create the ReAct agent
         
-        system_prompt = """You are a League of Legends AI assistant specialized exclusively in League of Legends. You have access to Riot Games API tools, static game data resources, and workflow prompts through MCP (Model Context Protocol).
+        system_prompt = """You are a League of Legends AI assistant specialized exclusively in League of Legends. You have access to Riot Games API tools, static game data resources, workflow prompts through MCP (Model Context Protocol), and specialized champion build analysis tools.
 
 IMPORTANT: You are ONLY for League of Legends queries. If users ask about other games, topics, or general questions unrelated to League of Legends, politely redirect them to ask about League of Legends instead.
 
@@ -216,6 +265,31 @@ EXAMPLE WORKFLOW for "get puuid of Sneaky#NA1 then get match details":
 3. Call get_match_ids_by_puuid(puuid=extracted_puuid, region="na1")
 4. Extract match id from the result
 5. Call get_match_details(match_id=extracted_match_id, region="na1")
+
+BUILD ANALYSIS TOOLS (for champion builds and itemization):
+
+- champion_build_tool(champion) - Get comprehensive build analysis from OP.GG including:
+  * Core item combinations with pick rates and win rates
+  * Recommended boots and situational items
+  * Complete 6-item build order progression
+  * Strategic itemization guidance
+- champion_stats_tool(champion) - Get current meta statistics including:
+  * Tier ranking (1-5 scale), win/pick/ban rates
+  * Patch version and position information
+  * Performance metrics for strategic decisions
+
+WHEN TO USE BUILD TOOLS:
+- User asks for builds, items, or itemization advice
+- Questions about champion meta performance or viability  
+- Requests for situational builds or counter-building
+- Match analysis requiring build recommendations
+
+BUILD TOOL USAGE GUIDELINES:
+- Use champion_build_tool to get current meta builds with specific pick/win rates
+- Use champion_stats_tool to check champion tier rankings and performance
+- For build recommendations, first get current meta data, then adapt to match context
+- Consider enemy champions when suggesting situational items
+- Always include boots in 6-item builds unless champion doesn't need them
 
 2. RESOURCES - Static Game Data (ask user to use these when needed):
 - ddragon://versions - All Data Dragon versions
@@ -294,7 +368,8 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         summoner_tools = [t for t in tool_names if 'summoner' in t]
         league_tools = [t for t in tool_names if 'league' in t]
         spectator_tools = [t for t in tool_names if 'active' in t or 'featured' in t]
-        other_tools = [t for t in tool_names if t not in account_tools + match_tools + summoner_tools + league_tools + spectator_tools]
+        builds_tools = [t for t in tool_names if 'champion_build' in t or 'champion_stats' in t]
+        other_tools = [t for t in tool_names if t not in account_tools + match_tools + summoner_tools + league_tools + spectator_tools + builds_tools]
         
         # Main status
         main_status = f"✅ **Connected** - {len(self.tools)} tools + resources & prompts available"
@@ -311,10 +386,12 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             tools_content += f"**League Tools:** {', '.join(league_tools)}\n\n"
         if spectator_tools:
             tools_content += f"**Spectator Tools:** {', '.join(spectator_tools)}\n\n"
+        if builds_tools:
+            tools_content += f"**Build Analysis Tools:** {', '.join(builds_tools)}\n\n"
         if other_tools:
             tools_content += f"**Other Tools:** {', '.join(other_tools)}\n\n"
         
-        tools_content += f"**Total:** {len(self.tools)} tools for real-time League of Legends data"
+        tools_content += f"**Total:** {len(self.tools)} tools for real-time League of Legends data and build analysis"
         
         # Resources section
         resources_content = """**Data Dragon Resources (Static Game Data):**
