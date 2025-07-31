@@ -1,3 +1,20 @@
+"""
+League of Legends Builds MCP Server
+
+This module provides Model Context Protocol (MCP) tools for fetching and analyzing
+League of Legends champion builds and statistics from OP.GG.
+
+Tools provided:
+- get_champion_build: Comprehensive build analysis with item combinations, pick rates, 
+  win rates, and strategic recommendations
+- get_champion_stats: Current meta statistics including tier rankings, performance metrics,
+  and patch information
+
+The tools use web scraping combined with Gemini AI analysis to extract detailed,
+structured information from OP.GG's champion pages, providing data-driven insights
+for optimal champion itemization and meta understanding.
+"""
+
 from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -26,22 +43,55 @@ else:
 
 
 async def extract_build_info_with_gemini(html_content: str, champion: str) -> str:
-    """Extract build information from HTML using Gemini"""
+    """Extract detailed build information from HTML using Gemini AI analysis.
+    
+    This function processes OP.GG HTML content to extract comprehensive build data
+    including item combinations, pick rates, win rates, and strategic recommendations.
+    """
     if not gemini_model:
         return f"Error: Gemini API key not configured. Cannot extract build information for {champion}."
     
-    prompt = f"""You are analyzing League of Legends champion build data from OP.GG. 
+    prompt = f"""You are analyzing League of Legends champion build data from OP.GG for {champion}. 
 
-Extract the following information from the HTML content for {champion}:
+Extract and format comprehensive build information with the following structure:
 
-1. **Core Items** - The most commonly built items with their pick rates
-2. **Boots** - Recommended boots with pick rates
-3. **Situational Items** - Other items that are built situationally
-4. **Item Build Order** - The typical order items are built
-5. **Win Rates** - Win rates for different item combinations if available
-6. **Key Statistics** - Any important stats like damage, survivability, etc.
+## {champion.title()} Build Analysis from OP.GG
 
-Format the output as a clean, readable text with clear sections. Focus on the most important and commonly used items.
+**1. Core Items**
+List the most popular core item builds with exact pick rates and win rates:
+- Format: "Item1 -> Item2 -> Item3 (XX.XX% pick rate, XX.XX% win rate)"
+- Include at least 4-5 core combinations
+- Order by popularity (highest pick rate first)
+
+**2. Boots**
+- Primary boot choice with pick rate and win rate
+- Alternative boot options if available
+- Format: "Boot Name (XX.XX% pick rate, XX.XX% win rate)"
+
+**3. Situational Items**
+Categorize items by their purpose:
+- Anti-tank items (armor penetration)
+- Anti-heal items
+- Defensive items
+- Damage items
+- Include win rates for each when used in specific slots
+
+**4. Item Build Order**
+Provide step-by-step build progression:
+1. Starting Items
+2. First Back
+3. Core Item 1
+4. Core Item 2
+5. Situational Items
+6. Late Game Options
+
+**5. Win Rates**
+Highlight key performance metrics for different builds and items.
+
+**6. Key Statistics**
+Summarize the strategic priorities this build focuses on (damage, survivability, utility, etc.).
+
+Focus on extracting specific percentages, item names, and statistical data. Be precise with numbers.
 
 HTML Content:
 {html_content}
@@ -55,7 +105,11 @@ Please extract and format the build information:"""
         return f"Error extracting build information with Gemini: {str(e)}"
 
 async def make_opgg_request(url: str) -> str | None:
-    """Make a request to OP.GG with proper error handling."""
+    """Make a request to OP.GG with proper headers and error handling.
+    
+    Uses appropriate headers to mimic a real browser request and avoid being blocked.
+    Includes timeout and error handling for robust web scraping.
+    """
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -233,10 +287,32 @@ Weak Against: {', '.join(build_data['counters']['weak_against'][:5])}
 
 @mcp.tool()
 async def get_champion_build(champion: str) -> str:
-    """Get build information for a League of Legends champion from OP.GG.
+    """Get comprehensive build information for a League of Legends champion from OP.GG.
+
+    This tool provides detailed build analysis including:
+    - Core item combinations with pick rates and win rates
+    - Recommended boots with usage statistics
+    - Situational items for different game scenarios
+    - Complete 6-item build order progression
+    - Performance metrics for each item choice
+    - Strategic itemization guidance
 
     Args:
         champion: Champion name (e.g. jinx, yasuo, ahri)
+        
+    Returns:
+        Detailed build analysis containing:
+        * **Core Items**: Most popular item combinations with pick/win rates
+        * **Boots**: Recommended boot choices with statistics
+        * **Situational Items**: Context-dependent item options
+        * **Item Build Order**: Step-by-step build progression
+        * **Win Rates**: Performance data for different builds
+        * **Key Statistics**: Strategic priorities and itemization focus
+        
+    Example output format:
+        - Core item builds with percentages (e.g., "Yun Tal -> IE -> Hurricane: 34.19% pick, 60.58% win")
+        - Situational recommendations based on enemy composition
+        - Complete 6-item build suggestions with reasoning
     """
     # Normalize champion name for URL
     champion_lower = champion.lower().replace(' ', '').replace("'", "")
@@ -290,10 +366,37 @@ async def get_champion_build(champion: str) -> str:
 
 @mcp.tool()
 async def get_champion_stats(champion: str) -> str:
-    """Get detailed statistics for a League of Legends champion from OP.GG.
+    """Get detailed performance statistics for a League of Legends champion from OP.GG.
+
+    This tool provides current meta statistics and performance metrics including:
+    - Current patch version and position viability
+    - Tier ranking in the meta (1-5 tier system)
+    - Win rate, pick rate, and ban rate percentages
+    - Total games played for statistical confidence
+    - Position-specific performance data
 
     Args:
         champion: Champion name (e.g. jinx, yasuo, ahri)
+        
+    Returns:
+        Statistical overview containing:
+        * **Patch Information**: Current game version
+        * **Position**: Primary role (Bottom, Top, Mid, Jungle, Support)
+        * **Tier Ranking**: Meta tier (1-5, where 1 is strongest)
+        * **Games Played**: Sample size for reliability
+        * **Win Rate**: Success rate percentage
+        * **Pick Rate**: How often the champion is selected
+        * **Ban Rate**: How often the champion is banned
+        
+    Example output:
+        "=== Jinx Statistics ===
+         Patch: Version: 14.23
+         Position: Bottom
+         Tier: 1 Tier
+         Games Played: 125,847
+         Win Rate: 52.97%
+         Pick Rate: 8.45%
+         Ban Rate: 2.1%"
     """
     # Normalize champion name for URL
     champion_lower = champion.lower().replace(' ', '').replace("'", "")
