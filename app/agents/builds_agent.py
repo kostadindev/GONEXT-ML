@@ -5,6 +5,7 @@ import threading
 import queue
 
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
@@ -12,6 +13,8 @@ from dotenv import load_dotenv
 from app.config import settings
 from app.utils.callbacks import ToolCallLogger
 from app.utils.formatters import format_match_for_llm
+# Import the MCP functions
+from app.mcp.builds_mcp import get_champion_build, get_champion_stats
 
 load_dotenv()
 
@@ -20,11 +23,52 @@ logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s -
 logger = logging.getLogger(__name__)
 logging.getLogger(__name__).setLevel(logging.INFO)
 
+# Create LangChain tool wrappers for the MCP functions
+@tool
+async def champion_build_tool(champion: str) -> str:
+    """Get comprehensive build analysis for a League of Legends champion from OP.GG.
+    
+    This tool provides detailed build information including:
+    - Core item combinations with pick rates and win rates (e.g., "Yun Tal -> IE -> Hurricane: 34.19% pick, 60.58% win")
+    - Recommended boots with usage statistics
+    - Situational items categorized by purpose (anti-tank, anti-heal, defensive)
+    - Complete 6-item build order progression
+    - Performance metrics for different item choices
+    - Strategic itemization priorities and reasoning
+    
+    Args:
+        champion: Champion name (e.g. jinx, yasuo, ahri)
+    
+    Returns:
+        Comprehensive build analysis with statistical data, item recommendations,
+        and strategic guidance for optimal itemization.
+    """
+    return await get_champion_build(champion)
+
+@tool  
+async def champion_stats_tool(champion: str) -> str:
+    """Get current meta statistics for a League of Legends champion from OP.GG.
+    
+    This tool provides performance metrics including:
+    - Current patch version and tier ranking (1-5 scale)
+    - Win rate, pick rate, and ban rate percentages
+    - Total games played for statistical confidence
+    - Primary position/role information
+    - Meta viability assessment
+    
+    Args:
+        champion: Champion name (e.g. jinx, yasuo, ahri)
+    
+    Returns:
+        Current meta statistics and performance data for strategic decision making.
+    """
+    return await get_champion_stats(champion)
+
 class BuildsAgent:
     def __init__(self):
         # Initialize core components
         self.agent = None
-        self.tools = []
+        self.tools = [champion_build_tool, champion_stats_tool]
         self.is_connected = False
         self.message_queue = queue.Queue()
         
@@ -132,9 +176,13 @@ Please analyze the above match context and recommend an optimal 6-item build for
         system_prompt = """You are a League of Legends Expert recommending builds for a player.
 
 You will be given a match with the champions of both teams.
-You will have access to tools to check current best performing situational builds and statistics for the champion.
+You have access to real-time tools to check current best performing builds and detailed statistics for any champion from OP.GG.
 
-Given the match and situational builds, you will need to recommend a 6 item build for the player.
+Available Tools:
+- champion_build_tool: Get detailed build information including core items, boots, situational items, build order, and win rates
+- champion_stats_tool: Get champion statistics including tier ranking, win rate, pick rate, ban rate, and patch information
+
+Given the match context and current meta builds, you will need to recommend a 6 item build for the player. Include boots unless the champion does not need them.
 
 **BUILD RECOMMENDATION GUIDELINES:**
 
@@ -143,12 +191,14 @@ Given the match and situational builds, you will need to recommend a 6 item buil
    - Consider enemy team composition and threats
    - Evaluate your team's composition and needs
    - Assess the game mode and queue type
+   - Consider the enemy laner or jungler
 
 2. **Build Structure:**
    - Recommend exactly 6 items for a full build
    - Include core items that synergize with the champion
    - Add situational items based on enemy threats
    - Consider defensive items when needed
+   - Include boots unless the champion does not need them
 
 3. **Reasoning:**
    - Explain why each item is chosen
@@ -161,11 +211,17 @@ Given the match and situational builds, you will need to recommend a 6 item buil
    - Explain when to deviate from the recommended build
    - Consider early, mid, and late game priorities
 
-Always provide clear reasoning for your build recommendations and consider the specific match context provided."""
+5. **Tool Usage:**
+   - Use champion_build_tool to get current meta builds for the player's champion
+   - Use champion_stats_tool to check champion performance and tier rankings
+   - Use tools for enemy champions to understand threats and counter-build accordingly
+   - Compare current patch data with match context
+
+Always provide clear reasoning for your build recommendations, use the available tools to get current meta information, and consider the specific match context provided."""
 
         self.agent = create_react_agent(
             model=self.model,
-            tools=self.tools,  # Empty for now, will be populated later
+            tools=self.tools,  # Now includes champion build and stats tools
             prompt=system_prompt,
             debug=True
         )
@@ -184,9 +240,13 @@ Always provide clear reasoning for your build recommendations and consider the s
         
         return {
             "status": "✅ **Connected** - Builds Agent ready",
-            "tools": "Basic builds analysis (external tools to be added)",
+            "tools": "OP.GG Integration: champion_build_tool, champion_stats_tool",
             "capabilities": """**Current Capabilities:**
-            - Champion build recommendations"""
+            - Real-time champion build data from OP.GG
+            - Champion statistics and meta analysis
+            - Situational build recommendations based on match context
+            - Core items, boots, and situational item suggestions
+            - Win rate and pick rate analysis"""
         }
     
     def process_query(self, query: str, history: List[Dict] = None, match: Dict = None) -> str:
